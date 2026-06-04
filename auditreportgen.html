@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Production U.S. Audit Report Generator</title>
+    <title>Ultimate U.S. Audit Report Generator</title>
     <style>
         :root {
             --primary: #1e293b;
-            --secondary: #0f172a;
+            --secondary: #334155;
             --accent: #2563eb;
             --bg: #f8fafc;
             --surface: #ffffff;
@@ -48,7 +48,8 @@
             overflow-y: auto;
         }
 
-        h2 { margin: 0 0 10px 0; font-size: 1.2rem; color: var(--primary); }
+        h2 { margin: 0 0 5px 0; font-size: 1.2rem; color: var(--primary); }
+        .subtitle { font-size: 0.8rem; color: #64748b; margin-bottom: 10px; }
         
         .section-label { 
             font-size: 0.85rem; 
@@ -87,17 +88,18 @@
             display: flex;
             align-items: flex-start;
             gap: 8px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             cursor: pointer;
-            padding: 10px;
+            padding: 8px 10px;
             background: #f1f5f9;
             border-radius: 4px;
             border: 1px solid transparent;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             transition: background 0.2s;
+            line-height: 1.3;
         }
         .checkbox-label:hover { background: #e2e8f0; }
-        .checkbox-label input { margin-top: 3px; cursor: pointer; }
+        .checkbox-label input { margin-top: 2px; cursor: pointer; }
 
         /* Document Preview */
         .document-panel {
@@ -107,7 +109,7 @@
             border: 1px solid var(--border);
             box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
             overflow-y: auto;
-            font-family: "Times New Roman", Times, serif; /* Professional Document Font */
+            font-family: "Times New Roman", Times, serif;
             color: var(--doc-text);
             line-height: 1.6;
             font-size: 11pt;
@@ -115,14 +117,13 @@
 
         .doc-header { text-align: center; margin-bottom: 30px; }
         .doc-title { text-transform: uppercase; margin-bottom: 15px; font-weight: bold; }
-        .doc-section-title { font-weight: bold; margin-top: 20px; margin-bottom: 8px; }
+        .doc-section-title { font-weight: bold; margin-top: 20px; margin-bottom: 8px; page-break-after: avoid; }
         .doc-paragraph { margin-bottom: 12px; text-align: justify; }
         
-        /* Bullet point styling for auditor responsibilities */
         .doc-list { margin: 0 0 12px 20px; padding: 0; text-align: justify; }
         .doc-list-item { margin-bottom: 6px; }
 
-        .signature-block { margin-top: 40px; }
+        .signature-block { margin-top: 40px; page-break-inside: avoid; }
         .print-btn {
             background: var(--primary); color: white; border: none; padding: 12px;
             font-weight: bold; border-radius: 4px; cursor: pointer; margin-top: auto;
@@ -145,7 +146,10 @@
 
     <div class="container">
         <div class="controls-panel">
-            <h2>U.S. Audit Report Generator</h2>
+            <div>
+                <h2>Audit Report Generator</h2>
+                <div class="subtitle">Strict GAAS/PCAOB Compliance Engine</div>
+            </div>
             
             <div class="form-group">
                 <label>Audit Framework Standard</label>
@@ -198,7 +202,7 @@
                 </div>
                 <div class="form-group" id="camTextGroup" style="display: none;">
                     <label>Critical Audit Matter (CAM) Text</label>
-                    <textarea id="camText" rows="4" oninput="generate()">As described in Note 4 to the financial statements, the Company has a goodwill balance of $50 million. We identified the valuation of goodwill as a critical audit matter due to the significant judgment required by management in estimating the fair value of reporting units...</textarea>
+                    <textarea id="camText" rows="3" oninput="generate()">As described in Note 4 to the financial statements, the Company has a goodwill balance of $50 million. We identified the valuation of goodwill as a critical audit matter...</textarea>
                 </div>
             </div>
 
@@ -214,24 +218,30 @@
     </div>
 
     <script>
-        // Toggle configurations
+        // Toggle configurations mapped to frameworks
         const toggles = {
             private: [
-                { id: "gc", label: "Going Concern Emphasis Paragraph" },
-                { id: "comp", label: "Reference to Component Auditor" }
+                { id: "gc", label: "Going Concern Emphasis" },
+                { id: "comp", label: "Reference to Component Auditor" },
+                { id: "changeAcct", label: "Change in Accounting Principle" },
+                { id: "predPriv", label: "Prior Year Audited by Predecessor" },
+                { id: "suppInfo", label: "Supplementary Information Included" }
             ],
             nonprofit: [
-                { id: "gc", label: "Going Concern Emphasis Paragraph" },
+                { id: "gc", label: "Going Concern Emphasis" },
+                { id: "changeAcct", label: "Change in Accounting Principle" },
                 { id: "sumComp", label: "Summarized Comparative Info (Prior Year)" },
-                { id: "yb", label: "Yellow Book (Government Auditing Standards)" }
+                { id: "suppInfo", label: "Supplementary Information Included" },
+                { id: "yb", label: "Yellow Book (Gov. Auditing Standards)" }
             ],
             public: [
                 { id: "icfr", label: "Integrated Audit (ICFR Opinion included)" },
+                { id: "changeAcct", label: "Change in Accounting Principle" },
+                { id: "predPub", label: "Prior Year Audited by Predecessor" },
                 { id: "cam", label: "Include Critical Audit Matters (CAMs)", onchange: "toggleCamText()" }
             ]
         };
 
-        // UI Updater
         function updateUI() {
             const fw = document.getElementById('framework').value;
             const tContainer = document.getElementById('togglesContainer');
@@ -270,7 +280,6 @@
             return el ? el.checked : false;
         }
 
-        // Generator Logic
         function generate() {
             const fw = document.getElementById('framework').value;
             
@@ -286,6 +295,9 @@
             if (fw === 'private') {
                 const gc = isChecked('gc');
                 const comp = isChecked('comp');
+                const changeAcct = isChecked('changeAcct');
+                const predPriv = isChecked('predPriv');
+                const suppInfo = isChecked('suppInfo');
 
                 html += `
                     <div class="doc-header">
@@ -315,6 +327,13 @@
                     `;
                 }
 
+                if(changeAcct) {
+                    html += `
+                        <div class="doc-section-title">Emphasis of Matter - Change in Accounting Principle</div>
+                        <div class="doc-paragraph">As discussed in Note X to the financial statements, the Company changed its method of accounting for [Topic] in ${y2} due to the adoption of [Standard/ASU]. Our opinion is not modified with respect to this matter.</div>
+                    `;
+                }
+
                 html += `
                     <div class="doc-section-title">Responsibilities of Management for the Financial Statements</div>
                     <div class="doc-paragraph">Management is responsible for the preparation and fair presentation of the financial statements in accordance with accounting principles generally accepted in the United States of America, and for the design, implementation, and maintenance of internal control relevant to the preparation and fair presentation of financial statements that are free from material misstatement, whether due to fraud or error.</div>
@@ -332,11 +351,27 @@
                     </ul>
                     <div class="doc-paragraph">We are required to communicate with those charged with governance regarding, among other matters, the planned scope and timing of the audit, significant audit findings, and certain internal control related matters that we identified during the audit.</div>
                 `;
+
+                if(predPriv) {
+                    html += `
+                        <div class="doc-section-title">Other Matter - Predecessor Auditor</div>
+                        <div class="doc-paragraph">The financial statements of ${org} as of and for the year ended December 31, ${y1}, were audited by a predecessor auditor who expressed an unmodified opinion on those statements on [Prior Date].</div>
+                    `;
+                }
+
+                if(suppInfo) {
+                    html += `
+                        <div class="doc-section-title">Report on Supplementary Information</div>
+                        <div class="doc-paragraph">Our audit was conducted for the purpose of forming an opinion on the financial statements as a whole. The accompanying supplementary information is presented for purposes of additional analysis and is not a required part of the financial statements. Such information is the responsibility of management and was derived from and relates directly to the underlying accounting and other records used to prepare the financial statements. The information has been subjected to the auditing procedures applied in the audit of the financial statements and certain additional procedures, including comparing and reconciling such information directly to the underlying accounting and other records used to prepare the financial statements or to the financial statements themselves, and other additional procedures in accordance with auditing standards generally accepted in the United States of America. In our opinion, the supplementary information is fairly stated in all material respects in relation to the financial statements as a whole.</div>
+                    `;
+                }
             } 
             
             else if (fw === 'nonprofit') {
                 const gc = isChecked('gc');
+                const changeAcct = isChecked('changeAcct');
                 const sumComp = isChecked('sumComp');
+                const suppInfo = isChecked('suppInfo');
                 const yb = isChecked('yb');
 
                 html += `
@@ -357,6 +392,13 @@
                     html += `
                         <div class="doc-section-title">Substantial Doubt About the Organization’s Ability to Continue as a Going Concern</div>
                         <div class="doc-paragraph">The accompanying financial statements have been prepared assuming that the Organization will continue as a going concern. As discussed in Note X, conditions exist that raise substantial doubt about its ability to continue as a going concern. Our opinion is not modified with respect to this matter.</div>
+                    `;
+                }
+
+                if(changeAcct) {
+                    html += `
+                        <div class="doc-section-title">Emphasis of Matter - Change in Accounting Principle</div>
+                        <div class="doc-paragraph">As discussed in Note X to the financial statements, the Organization changed its method of accounting for [Topic] in ${y2} due to the adoption of [Standard/ASU]. Our opinion is not modified with respect to this matter.</div>
                     `;
                 }
 
@@ -385,6 +427,13 @@
                     `;
                 }
 
+                if(suppInfo) {
+                    html += `
+                        <div class="doc-section-title">Report on Supplementary Information</div>
+                        <div class="doc-paragraph">Our audit was conducted for the purpose of forming an opinion on the financial statements as a whole. The accompanying supplementary information is presented for purposes of additional analysis and is not a required part of the financial statements. Such information is the responsibility of management and was derived from and relates directly to the underlying accounting and other records used to prepare the financial statements. The information has been subjected to the auditing procedures applied in the audit of the financial statements and certain additional procedures, including comparing and reconciling such information directly to the underlying accounting and other records used to prepare the financial statements or to the financial statements themselves, and other additional procedures in accordance with auditing standards generally accepted in the United States of America. In our opinion, the supplementary information is fairly stated in all material respects in relation to the financial statements as a whole.</div>
+                    `;
+                }
+
                 if(yb) {
                     html += `
                         <div class="doc-section-title">Other Reporting Required by Government Auditing Standards</div>
@@ -395,6 +444,8 @@
 
             else if (fw === 'public') {
                 const icfr = isChecked('icfr');
+                const changeAcct = isChecked('changeAcct');
+                const predPub = isChecked('predPub');
                 const cam = isChecked('cam');
                 const tenure = getVal('tenure', 'Year');
                 const camText = document.getElementById('camText').value.replace(/\n/g, '<br><br>');
@@ -409,6 +460,10 @@
                     <div class="doc-paragraph">We have audited the accompanying balance sheets of ${org} (the "Company") as of December 31, ${y2} and ${y1}, the related statements of operations, comprehensive income, stockholders' equity, and cash flows for each of the years in the period ended December 31, ${y2}, and the related notes (collectively referred to as the "financial statements"). In our opinion, the financial statements present fairly, in all material respects, the financial position of the Company as of December 31, ${y2} and ${y1}, and the results of its operations and its cash flows for each of the years in the period ended December 31, ${y2}, in conformity with accounting principles generally accepted in the United States of America.</div>
                 `;
 
+                if(predPub) {
+                    html += `<div class="doc-paragraph">The financial statements of the Company as of and for the year ended December 31, ${y1}, were audited by other auditors whose report dated [Prior Date], expressed an unqualified opinion on those statements.</div>`;
+                }
+
                 if(icfr) {
                     html += `<div class="doc-paragraph">We also have audited, in accordance with the standards of the Public Company Accounting Oversight Board (United States) (PCAOB), the Company's internal control over financial reporting as of December 31, ${y2}, based on criteria established in Internal Control—Integrated Framework issued by the Committee of Sponsoring Organizations of the Treadway Commission (COSO), and our report dated ${date} expressed an unqualified opinion thereon.</div>`;
                 }
@@ -418,6 +473,12 @@
                     <div class="doc-paragraph">These financial statements are the responsibility of the Company's management. Our responsibility is to express an opinion on the Company's financial statements based on our audits. We are a public accounting firm registered with the PCAOB and are required to be independent with respect to the Company in accordance with the U.S. federal securities laws and the applicable rules and regulations of the Securities and Exchange Commission and the PCAOB.</div>
                     <div class="doc-paragraph">We conducted our audits in accordance with the standards of the PCAOB. Those standards require that we plan and perform the audit to obtain reasonable assurance about whether the financial statements are free of material misstatement, whether due to error or fraud. Our audits included performing procedures to assess the risks of material misstatement of the financial statements, whether due to error or fraud, and performing procedures that respond to those risks. Such procedures included examining, on a test basis, evidence regarding the amounts and disclosures in the financial statements. Our audits also included evaluating the accounting principles used and significant estimates made by management, as well as evaluating the overall presentation of the financial statements. We believe that our audits provide a reasonable basis for our opinion.</div>
                 `;
+
+                if(changeAcct) {
+                    html += `
+                        <div class="doc-paragraph">As discussed in Note X to the financial statements, the Company changed its method of accounting for [Topic] in ${y2} due to the adoption of [Standard/ASU].</div>
+                    `;
+                }
 
                 if(cam) {
                     html += `
