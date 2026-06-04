@@ -96,11 +96,22 @@
             <div id="togglesContainer">
                 </div>
             
-            <div class="checkbox-label" style="background-color: #fff7ed; border-color: #fed7aa; margin-top: 10px;">
-                <input type="checkbox" id="manualMode" onchange="toggleManualMode()">
-                <label for="manualMode" style="cursor:pointer; font-weight: normal; font-size: 0.8rem; color: #c2410c;">
-                    Lock & Edit Manually<br><span style="font-size: 0.75rem; color: #64748b;">Enables typing directly onto the document sheet. Stops form automation.</span>
-                </label>
+            <div class="checkbox-label" style="background-color: #fff7ed; border-color: #fed7aa; margin-top: 10px; display: flex; flex-direction: column;">
+                <div style="display: flex; gap: 8px; align-items: flex-start;">
+                    <input type="checkbox" id="manualMode" onchange="toggleManualMode()">
+                    <label for="manualMode" style="cursor:pointer; font-weight: normal; font-size: 0.8rem; color: #c2410c; margin: 0;">
+                        Lock & Edit Manually<br><span style="font-size: 0.75rem; color: #64748b;">Enables typing directly onto the document sheet. Stops form automation.</span>
+                    </label>
+                </div>
+                
+                <div id="formatToolbar" style="display: none; margin-top: 10px; margin-left: 24px;">
+                    <button type="button" 
+                            onclick="document.execCommand('bold', false, null);" 
+                            style="padding: 4px 14px; font-weight: bold; cursor: pointer; border: 1px solid #cbd5e1; border-radius: 4px; background: white; color: #334155; font-size: 1rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" 
+                            title="Toggle Bold">
+                        B
+                    </button>
+                </div>
             </div>
 
             <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
@@ -113,7 +124,6 @@
     <script>
         let isManualMode = false;
 
-        // Comprehensive Scenario Database (GAAP/Scope/Indep issues)
         const masterScenarios = [
             { id: "clean", op: "unmodified", label: "Standard Unmodified Audit (Clean)", txt: "" },
             { id: "asc842", op: "qualified_gaap", label: "GAAP: ASC 842 Lease Non-Capitalization", txt: "The Company has not recognized right-of-use assets and corresponding lease liabilities for its operating leases. In our opinion, accounting principles generally accepted in the United States of America require operating leases to be recognized on the balance sheet. Had these obligations been properly recorded, consolidated total assets would increase by $2,400,000, total liabilities would increase by $2,450,000, and opening retained earnings would decrease by $50,000 as of December 31, [Y2]." },
@@ -134,7 +144,6 @@
             { id: "indep", op: "disclaimer", label: "Independence: Auditor Independence Violation", txt: "We were not independent with respect to the entity during the performance of the audit parameters under review." }
         ];
 
-        // Toggles preserved exactly as provided in the original request
         const toggles = {
             private: [
                 { id: "gc", label: "Going Concern Emphasis" },
@@ -225,12 +234,16 @@
         function toggleManualMode() {
             isManualMode = document.getElementById('manualMode').checked;
             const previewEl = document.getElementById('preview');
+            const toolbarEl = document.getElementById('formatToolbar');
+            
             previewEl.contentEditable = isManualMode;
             
             if (isManualMode) {
                 previewEl.style.boxShadow = "inset 0 0 0 3px #f97316";
+                toolbarEl.style.display = "block";
             } else {
                 previewEl.style.boxShadow = "";
+                toolbarEl.style.display = "none";
                 generate(); 
             }
         }
@@ -267,7 +280,6 @@
 
             let html = "";
 
-            // Independence Collapse Override
             if (scId === 'indep' || (op === 'disclaimer' && scId === 'indep')) {
                 html += `<div class="doc-header"><div class="doc-title">Disclaimer of Opinion on the Financial Statements</div></div>`;
                 html += `<div class="doc-paragraph">We were engaged to audit the financial statements of ${org}, which comprise the balance sheets as of December 31, ${y2}, and the related statements for the year then ended. We were not independent with respect to the entity, and accordingly, we do not express an opinion on these accompanying financial statements. We have not been able to obtain sufficient appropriate audit evidence to provide a basis for an audit opinion.</div>`;
