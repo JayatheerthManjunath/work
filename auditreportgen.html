@@ -24,37 +24,59 @@
                 </select>
             </div>
 
+            <div class="form-group">
+                <label>Detected Accounting / Scope Scenario</label>
+                <select id="scenario" onchange="handleScenarioChange()" style="background-color: #f0fdf4; border-color: #bbf7d0;">
+                    </select>
+            </div>
+
+            <div class="form-group">
+                <label>Opinion Classification Type</label>
+                <select id="opinionType" onchange="handleOpinionOverride()">
+                    <option value="unmodified">Unmodified Opinion (Clean)</option>
+                    <option value="qualified_gaap">Qualified Opinion (GAAP Departure)</option>
+                    <option value="qualified_scope">Qualified Opinion (Scope Limitation)</option>
+                    <option value="adverse">Adverse Opinion (Pervasive GAAP Failure)</option>
+                    <option value="disclaimer">Disclaimer of Opinion (Pervasive Scope/Indep.)</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="modificationTextGroup" style="display:none;">
+                <label>Basis for Modification Text Workspace</label>
+                <textarea id="modificationText" rows="4" oninput="generateSafely()"></textarea>
+            </div>
+
             <div class="section-label">Base Metadata</div>
             
             <div class="form-group">
                 <label>Organization / Company Name</label>
-                <input type="text" id="orgName" value="Acme Corporation" oninput="generate()">
+                <input type="text" id="orgName" value="Acme Corporation" oninput="generateSafely()">
             </div>
 
             <div class="grid-2">
                 <div class="form-group">
                     <label>Current Year</label>
-                    <input type="text" id="year2" value="2026" oninput="generate()">
+                    <input type="text" id="year2" value="2026" oninput="generateSafely()">
                 </div>
                 <div class="form-group">
                     <label>Prior Year</label>
-                    <input type="text" id="year1" value="2025" oninput="generate()">
+                    <input type="text" id="year1" value="2025" oninput="generateSafely()">
                 </div>
             </div>
 
             <div class="form-group">
                 <label>Auditing Firm Name</label>
-                <input type="text" id="firmName" value="Smith & Co LLP" oninput="generate()">
+                <input type="text" id="firmName" value="Smith & Co LLP" oninput="generateSafely()">
             </div>
 
             <div class="grid-2">
                 <div class="form-group">
                     <label>City, State</label>
-                    <input type="text" id="city" value="New York, NY" oninput="generate()">
+                    <input type="text" id="city" value="New York, NY" oninput="generateSafely()">
                 </div>
                 <div class="form-group">
                     <label>Report Date</label>
-                    <input type="text" id="date" value="June 4, 2026" oninput="generate()">
+                    <input type="text" id="date" value="June 4, 2026" oninput="generateSafely()">
                 </div>
             </div>
 
@@ -62,11 +84,11 @@
                 <div class="section-label">PCAOB Variables</div>
                 <div class="form-group">
                     <label>Auditor Tenure (Since Year)</label>
-                    <input type="text" id="tenure" value="2018" oninput="generate()">
+                    <input type="text" id="tenure" value="2018" oninput="generateSafely()">
                 </div>
                 <div class="form-group" id="camTextGroup" style="display: none;">
                     <label>Critical Audit Matter (CAM) Text</label>
-                    <textarea id="camText" rows="3" oninput="generate()">As described in Note 4 to the financial statements, the Company has a goodwill balance of $50 million. We identified the valuation of goodwill as a critical audit matter...</textarea>
+                    <textarea id="camText" rows="3" oninput="generateSafely()">As described in Note 4 to the financial statements, the Company has a goodwill balance of $50 million. We identified the valuation of goodwill as a critical audit matter...</textarea>
                 </div>
             </div>
 
@@ -74,15 +96,45 @@
             <div id="togglesContainer">
                 </div>
             
+            <div class="checkbox-label" style="background-color: #fff7ed; border-color: #fed7aa; margin-top: 10px;">
+                <input type="checkbox" id="manualMode" onchange="toggleManualMode()">
+                <label for="manualMode" style="cursor:pointer; font-weight: normal; font-size: 0.8rem; color: #c2410c;">
+                    Lock & Edit Manually<br><span style="font-size: 0.75rem; color: #64748b;">Enables typing directly onto the document sheet. Stops form automation.</span>
+                </label>
+            </div>
+
             <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
         </div>
 
-        <div class="document-panel" id="preview">
+        <div class="document-panel" id="preview" contenteditable="false">
             </div>
     </div>
 
     <script>
-        // Toggle configurations mapped to frameworks
+        let isManualMode = false;
+
+        // Comprehensive Scenario Database (GAAP/Scope/Indep issues)
+        const masterScenarios = [
+            { id: "clean", op: "unmodified", label: "Standard Unmodified Audit (Clean)", txt: "" },
+            { id: "asc842", op: "qualified_gaap", label: "GAAP: ASC 842 Lease Non-Capitalization", txt: "The Company has not recognized right-of-use assets and corresponding lease liabilities for its operating leases. In our opinion, accounting principles generally accepted in the United States of America require operating leases to be recognized on the balance sheet. Had these obligations been properly recorded, consolidated total assets would increase by $2,400,000, total liabilities would increase by $2,450,000, and opening retained earnings would decrease by $50,000 as of December 31, [Y2]." },
+            { id: "asc606", op: "qualified_gaap", label: "GAAP: ASC 606 Premature Revenue Cutoff", txt: "The Company prematurely recognized revenue from bill-and-hold transactions before specific performance obligations were satisfied and before control of the assets transferred to the buyers. Consequently, revenue for the year ended December 31, [Y2] is overstated by $1,800,000, cost of sales is understated by $1,100,000, and net income and stockholders' equity are overstated by $700,000." },
+            { id: "cecl", op: "qualified_gaap", label: "GAAP: CECL Bad Debt Allowance Deficit", txt: "Management failed to adjust its valuation allowance metrics to reflect lifetime expected credit losses under the current expected credit losses (CECL) methodology. Had an appropriate forward-looking predictive framework been applied, the allowance for credit losses would be increased by $650,000, accounts receivable would be reduced by $650,000, and pre-tax operating income would be decreased by that amount." },
+            { id: "goodwill", op: "qualified_gaap", label: "GAAP: Goodwill Impairment Failure", txt: "Management declined to test its carrying goodwill reporting unit metrics for impairment despite prolonged historical operational cash declines. Had proper quantitative impairment testing been completed in compliance with accounting principles generally accepted in the United States of America, a goodwill impairment loss of $3,100,000 would have been recognized, reducing non-current assets and net profitability for the year ended December 31, [Y2]." },
+            { id: "nrv", op: "qualified_gaap", label: "GAAP: Inventory Overvaluation (Lower of Cost/NRV)", txt: "The Company carried slow-moving, obsolete inventory components at original cost metrics within ending inventory balances. Accounting principles generally accepted in the United States of America require inventory to be stated at the lower of cost or net realizable value. Adjusting these asset layers to net realizable values would reduce ending inventory assets, net income, and retained earnings by $850,000 as of December 31, [Y2]." },
+            { id: "asc450", op: "qualified_gaap", label: "GAAP: Failure to Accrue Litigational Loss", txt: "The Company is an active defendant in commercial contract infringement litigation where a negative judicial determination has been evaluated by outside legal counsel as probable and reasonably estimable at $1,200,000. No liability or matching loss provision has been recognized in the financial statements. In our opinion, GAAP requires that a structural loss provision be accrued under these criteria." },
+            { id: "related", op: "qualified_gaap", label: "GAAP: Omission of Related Party Loans", txt: "The financial statements fail to disclose material transaction details with related party corporate affiliates. During the fiscal period, the Company executed an unsecured, interest-free line of credit advance of $950,000 to its principal operating stockholder. Disclosure of this structural transaction asset is mandatory under GAAP." },
+            { id: "consol", op: "qualified_gaap", label: "GAAP: Failure to Consolidate Controlled VIE", txt: "The Company failed to consolidate the financial statements and operating results of [Component Entity], a variable interest entity where the Company represents the designated primary beneficiary. Under GAAP, consolidation of this entity is mandatory." },
+            { id: "cashflow", op: "qualified_gaap", label: "GAAP: Complete Omission of Cash Flows Statement", txt: "The Company's financial statements do not include a statement of cash flows. Presentation of a statement summarizing operating, investing, and financing cash flows is an essential, mandatory requirement under accounting principles generally accepted in the United States of America." },
+            { id: "asc740", op: "qualified_gaap", label: "GAAP: Failure to Record Deferred Tax Liability", txt: "The Company failed to recognize deferred tax liabilities associated with material temporary timing differences resulting from accelerated tax depreciation parameters. Had proper deferred tax accounting been instituted in accordance with ASC 740, deferred income tax liabilities would increase by $420,000, and current-period tax expense metrics would increase by that amount." },
+            { id: "invScope", op: "qualified_scope", label: "Scope: Engagement After Year-End (No Count)", txt: "We were not engaged as auditors until after December 31, [Y2], and therefore could not observe the physical counting of inventories at that date. We were unable to satisfy ourselves regarding baseline inventory quantities or valuation layers through the execution of alternative auditing testing protocols." },
+            { id: "foreignScope", op: "qualified_scope", label: "Scope: Inaccessible Foreign Subsidiary Records", txt: "We were unable to inspect the underlying source general ledgers, subsidiary registers, or support transaction invoices regarding the Company's European operating branch due to localized foreign data privacy cross-border enforcement acts. This segment accounts for 24 percent of consolidated total asset value." },
+            { id: "arScope", op: "qualified_scope", label: "Scope: Customer Balance Confirmations Blocked", txt: "Management prohibited direct confirmation communications with key commercial distribution customers during our risk validation procedures. We were unable to apply alternative substantive procedures to validate account validity or valuation because customer shipping logs and tracking documentation were unavailable for inspection." },
+            { id: "destroyed", op: "qualified_scope", label: "Scope: Destruction of Records via Fire/Cyber", txt: "A catastrophic ransomware data event destroyed the Company's non-current accounts payable data logs and physical vendor invoice archives for the initial six months of the fiscal period under review. We were unable to obtain sufficient appropriate audit evidence regarding these disbursements via alternative procedural testing lines." },
+            { id: "legalScope", op: "qualified_scope", label: "Scope: Outside Legal Counsel Inquiry Refusal", txt: "Outside corporate litigation counsel representing the entity in material trade dispute litigation declined to respond to our formal audit inquiry parameters. We were unable to apply alternative auditing procedures to determine whether matching contingent loss adjustments were required under the circumstances." },
+            { id: "indep", op: "disclaimer", label: "Independence: Auditor Independence Violation", txt: "We were not independent with respect to the entity during the performance of the audit parameters under review." }
+        ];
+
+        // Toggles preserved exactly as provided in the original request
         const toggles = {
             private: [
                 { id: "gc", label: "Going Concern Emphasis" },
@@ -106,7 +158,16 @@
             ]
         };
 
+        function populateScenarios() {
+            const sel = document.getElementById('scenario');
+            sel.innerHTML = '';
+            masterScenarios.forEach(s => {
+                sel.innerHTML += `<option value="${s.id}">${s.label}</option>`;
+            });
+        }
+
         function updateUI() {
+            if (isManualMode) return;
             const fw = document.getElementById('framework').value;
             const tContainer = document.getElementById('togglesContainer');
             const pInputs = document.getElementById('publicInputs');
@@ -115,7 +176,7 @@
 
             tContainer.innerHTML = '';
             toggles[fw].forEach(t => {
-                const onChangeFn = t.onchange ? `onchange="${t.onchange}; generate()"` : `onchange="generate()"`;
+                const onChangeFn = t.onchange ? `onchange="${t.onchange}; generateSafely()"` : `onchange="generateSafely()"`;
                 tContainer.innerHTML += `
                     <label class="checkbox-label">
                         <input type="checkbox" id="${t.id}" ${onChangeFn}>
@@ -128,9 +189,54 @@
             generate();
         }
 
+        function handleScenarioChange() {
+            if (isManualMode) return;
+            const id = document.getElementById('scenario').value;
+            const sc = masterScenarios.find(s => s.id === id);
+            
+            document.getElementById('opinionType').value = sc.op;
+            
+            const txtGroup = document.getElementById('modificationTextGroup');
+            const txtArea = document.getElementById('modificationText');
+
+            if (sc.op === 'unmodified') {
+                txtGroup.style.display = 'none';
+                txtArea.value = '';
+            } else {
+                txtGroup.style.display = 'block';
+                txtArea.value = sc.txt;
+            }
+            generate();
+        }
+
+        function handleOpinionOverride() {
+            if (isManualMode) return;
+            const op = document.getElementById('opinionType').value;
+            const txtGroup = document.getElementById('modificationTextGroup');
+            txtGroup.style.display = (op === 'unmodified') ? 'none' : 'block';
+            generate();
+        }
+
         function toggleCamText() {
             const camCheck = document.getElementById('cam');
             document.getElementById('camTextGroup').style.display = (camCheck && camCheck.checked) ? 'block' : 'none';
+        }
+
+        function toggleManualMode() {
+            isManualMode = document.getElementById('manualMode').checked;
+            const previewEl = document.getElementById('preview');
+            previewEl.contentEditable = isManualMode;
+            
+            if (isManualMode) {
+                previewEl.style.boxShadow = "inset 0 0 0 3px #f97316";
+            } else {
+                previewEl.style.boxShadow = "";
+                generate(); 
+            }
+        }
+
+        function generateSafely() {
+            if (!isManualMode) generate();
         }
 
         function getVal(id, fallback) {
@@ -146,6 +252,8 @@
 
         function generate() {
             const fw = document.getElementById('framework').value;
+            const op = document.getElementById('opinionType').value;
+            const scId = document.getElementById('scenario').value;
             
             const org = getVal('orgName', 'Organization Name');
             const y2 = getVal('year2', 'Current Year');
@@ -154,7 +262,19 @@
             const city = getVal('city', 'City, State');
             const date = getVal('date', 'Report Date');
 
+            let rawText = document.getElementById('modificationText').value || '';
+            let modText = rawText.replace(/\[Y2\]/g, y2).replace(/\[Y1\]/g, y1).replace(/\[Organization\]/g, org);
+
             let html = "";
+
+            // Independence Collapse Override
+            if (scId === 'indep' || (op === 'disclaimer' && scId === 'indep')) {
+                html += `<div class="doc-header"><div class="doc-title">Disclaimer of Opinion on the Financial Statements</div></div>`;
+                html += `<div class="doc-paragraph">We were engaged to audit the financial statements of ${org}, which comprise the balance sheets as of December 31, ${y2}, and the related statements for the year then ended. We were not independent with respect to the entity, and accordingly, we do not express an opinion on these accompanying financial statements. We have not been able to obtain sufficient appropriate audit evidence to provide a basis for an audit opinion.</div>`;
+                html += `<div class="signature-block"><div class="doc-paragraph">${firm}</div><div class="doc-paragraph">${city}<br>${date}</div></div>`;
+                document.getElementById('preview').innerHTML = html;
+                return;
+            }
 
             if (fw === 'private') {
                 const gc = isChecked('gc');
@@ -168,21 +288,44 @@
                         <div class="doc-title">INDEPENDENT AUDITORS' REPORT</div>
                         <div>To the Shareholders and Board of Directors of<br>${org}</div>
                     </div>
-                    
-                    <div class="doc-section-title">Opinion</div>
-                    <div class="doc-paragraph">We have audited the financial statements of ${org}, which comprise the balance sheets as of December 31, ${y2} and ${y1}, and the related statements of income, changes in stockholders' equity, and cash flows for the years then ended, and the related notes to the financial statements.</div>
                 `;
+
+                let opHeader = "Opinion";
+                if (op === 'qualified_gaap' || op === 'qualified_scope') opHeader = "Qualified Opinion";
+                if (op === 'adverse') opHeader = "Adverse Opinion";
+                if (op === 'disclaimer') opHeader = "Disclaimer of Opinion";
+
+                html += `<div class="doc-section-title">${opHeader}</div>`;
+                html += `<div class="doc-paragraph">We have audited the financial statements of ${org}, which comprise the balance sheets as of December 31, ${y2} and ${y1}, and the related statements of income, changes in stockholders' equity, and cash flows for the years then ended, and the related notes to the financial statements.</div>`;
 
                 if(comp) {
                     html += `<div class="doc-paragraph">We did not audit the financial statements of [Component Entity], a wholly owned subsidiary, which statements reflect total assets constituting XX percent of consolidated total assets. Those statements were audited by other auditors whose report has been furnished to us, and our opinion, insofar as it relates to the amounts included for [Component Entity], is based solely on the report of the other auditors.</div>`;
                 }
 
-                html += `
-                    <div class="doc-paragraph">In our opinion${comp ? ', based on our audits and the report of the other auditors,' : ''} the accompanying financial statements present fairly, in all material respects, the financial position of ${org} as of December 31, ${y2} and ${y1}, and the results of its operations and its cash flows for the years then ended in accordance with accounting principles generally accepted in the United States of America.</div>
+                if (op === 'unmodified') {
+                    html += `<div class="doc-paragraph">In our opinion${comp ? ', based on our audits and the report of the other auditors,' : ''} the accompanying financial statements present fairly, in all material respects, the financial position of ${org} as of December 31, ${y2} and ${y1}, and the results of its operations and its cash flows for the years then ended in accordance with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'qualified_gaap') {
+                    html += `<div class="doc-paragraph">In our opinion, except for the effects of the matter described in the Basis for Qualified Opinion section of our report, the accompanying financial statements present fairly, in all material respects, the financial position of ${org} as of December 31, ${y2} and ${y1}, and the results of its operations and its cash flows for the years then ended in accordance with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'qualified_scope') {
+                    html += `<div class="doc-paragraph">In our opinion, except for the possible effects of the matter described in the Basis for Qualified Opinion section of our report, the accompanying financial statements present fairly, in all material respects, the financial position of ${org} as of December 31, ${y2} and ${y1}, and the results of its operations and its cash flows for the years then ended in accordance with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'adverse') {
+                    html += `<div class="doc-paragraph">In our opinion, because of the significance of the matter discussed in the Basis for Adverse Opinion section of our report, the accompanying financial statements do not present fairly the financial position of ${org} as of December 31, ${y2} and ${y1}, or the results of its operations or its cash flows for the years then ended in accordance with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'disclaimer') {
+                    html += `<div class="doc-paragraph">We do not express an opinion on the accompanying financial statements of ${org}. Because of the significance of the matter described in the Basis for Disclaimer of Opinion section of our report, we have not been able to obtain sufficient appropriate audit evidence to provide a basis for an audit opinion on these financial statements.</div>`;
+                }
 
-                    <div class="doc-section-title">Basis for Opinion</div>
-                    <div class="doc-paragraph">We conducted our audits in accordance with auditing standards generally accepted in the United States of America (GAAS). Our responsibilities under those standards are further described in the Auditors’ Responsibilities for the Audit of the Financial Statements section of our report. We are required to be independent of ${org} and to meet our other ethical responsibilities, in accordance with the relevant ethical requirements relating to our audits. We believe that the audit evidence we have obtained${comp ? ' and the report of the other auditors' : ''} is sufficient and appropriate to provide a basis for our audit opinion.</div>
-                `;
+                let basisHeader = "Basis for Opinion";
+                if (op === 'qualified_gaap' || op === 'qualified_scope') basisHeader = "Basis for Qualified Opinion";
+                if (op === 'adverse') basisHeader = "Basis for Adverse Opinion";
+                if (op === 'disclaimer') basisHeader = "Basis for Disclaimer of Opinion";
+
+                html += `<div class="doc-section-title">${basisHeader}</div>`;
+                
+                if (op !== 'unmodified') {
+                    html += `<div class="doc-paragraph">${modText}</div>`;
+                }
+
+                html += `<div class="doc-paragraph">We conducted our audits in accordance with auditing standards generally accepted in the United States of America (GAAS). Our responsibilities under those standards are further described in the Auditors’ Responsibilities for the Audit of the Financial Statements section of our report. We are required to be independent of ${org} and to meet our other ethical responsibilities, in accordance with the relevant ethical requirements relating to our audits. We believe that the audit evidence we have obtained${comp ? ' and the report of the other auditors' : ''} is sufficient and appropriate to provide a basis for our ${op !== 'unmodified' ? 'modified ' : ''}audit opinion.</div>`;
 
                 if(gc) {
                     html += `
@@ -202,19 +345,28 @@
                     <div class="doc-section-title">Responsibilities of Management for the Financial Statements</div>
                     <div class="doc-paragraph">Management is responsible for the preparation and fair presentation of the financial statements in accordance with accounting principles generally accepted in the United States of America, and for the design, implementation, and maintenance of internal control relevant to the preparation and fair presentation of financial statements that are free from material misstatement, whether due to fraud or error.</div>
                     <div class="doc-paragraph">In preparing the financial statements, management is required to evaluate whether there are conditions or events, considered in the aggregate, that raise substantial doubt about ${org}’s ability to continue as a going concern within one year after the date that the financial statements are available to be issued.</div>
-                    
-                    <div class="doc-section-title">Auditors’ Responsibilities for the Audit of the Financial Statements</div>
-                    <div class="doc-paragraph">Our objectives are to obtain reasonable assurance about whether the financial statements as a whole are free from material misstatement, whether due to fraud or error, and to issue an auditors’ report that includes our opinion. Reasonable assurance is a high level of assurance but is not absolute assurance and therefore is not a guarantee that an audit conducted in accordance with GAAS will always detect a material misstatement when it exists. The risk of not detecting a material misstatement resulting from fraud is higher than for one resulting from error, as fraud may involve collusion, forgery, intentional omissions, misrepresentations, or the override of internal control. Misstatements are considered material if there is a substantial likelihood that, individually or in the aggregate, they would influence the judgment made by a reasonable user based on the financial statements.</div>
-                    <div class="doc-paragraph">In performing an audit in accordance with GAAS, we:</div>
-                    <ul class="doc-list">
-                        <li class="doc-list-item">exercise professional judgment and maintain professional skepticism throughout the audit.</li>
-                        <li class="doc-list-item">identify and assess the risks of material misstatement of the financial statements, whether due to fraud or error, and design and perform audit procedures responsive to those risks. Such procedures include examining, on a test basis, evidence regarding the amounts and disclosures in the financial statements.</li>
-                        <li class="doc-list-item">obtain an understanding of internal control relevant to the audit in order to design audit procedures that are appropriate in the circumstances, but not for the purpose of expressing an opinion on the effectiveness of the Company’s internal control. Accordingly, no such opinion is expressed.</li>
-                        <li class="doc-list-item">evaluate the appropriateness of accounting policies used and the reasonableness of significant accounting estimates made by management, as well as evaluate the overall presentation of the financial statements.</li>
-                        <li class="doc-list-item">conclude whether, in our judgment, there are conditions or events, considered in the aggregate, that raise substantial doubt about the Company’s ability to continue as a going concern for a reasonable period of time.</li>
-                    </ul>
-                    <div class="doc-paragraph">We are required to communicate with those charged with governance regarding, among other matters, the planned scope and timing of the audit, significant audit findings, and certain internal control related matters that we identified during the audit.</div>
                 `;
+
+                if (op !== 'disclaimer') {
+                    html += `
+                        <div class="doc-section-title">Auditors’ Responsibilities for the Audit of the Financial Statements</div>
+                        <div class="doc-paragraph">Our objectives are to obtain reasonable assurance about whether the financial statements as a whole are free from material misstatement, whether due to fraud or error, and to issue an auditors’ report that includes our opinion. Reasonable assurance is a high level of assurance but is not absolute assurance and therefore is not a guarantee that an audit conducted in accordance with GAAS will always detect a material misstatement when it exists. The risk of not detecting a material misstatement resulting from fraud is higher than for one resulting from error, as fraud may involve collusion, forgery, intentional omissions, misrepresentations, or the override of internal control. Misstatements are considered material if there is a substantial likelihood that, individually or in the aggregate, they would influence the judgment made by a reasonable user based on the financial statements.</div>
+                        <div class="doc-paragraph">In performing an audit in accordance with GAAS, we:</div>
+                        <ul class="doc-list">
+                            <li class="doc-list-item">exercise professional judgment and maintain professional skepticism throughout the audit.</li>
+                            <li class="doc-list-item">identify and assess the risks of material misstatement of the financial statements, whether due to fraud or error, and design and perform audit procedures responsive to those risks. Such procedures include examining, on a test basis, evidence regarding the amounts and disclosures in the financial statements.</li>
+                            <li class="doc-list-item">obtain an understanding of internal control relevant to the audit in order to design audit procedures that are appropriate in the circumstances, but not for the purpose of expressing an opinion on the effectiveness of the Company’s internal control. Accordingly, no such opinion is expressed.</li>
+                            <li class="doc-list-item">evaluate the appropriateness of accounting policies used and the reasonableness of significant accounting estimates made by management, as well as evaluate the overall presentation of the financial statements.</li>
+                            <li class="doc-list-item">conclude whether, in our judgment, there are conditions or events, considered in the aggregate, that raise substantial doubt about the Company’s ability to continue as a going concern for a reasonable period of time.</li>
+                        </ul>
+                        <div class="doc-paragraph">We are required to communicate with those charged with governance regarding, among other matters, the planned scope and timing of the audit, significant audit findings, and certain internal control related matters that we identified during the audit.</div>
+                    `;
+                } else {
+                    html += `
+                        <div class="doc-section-title">Auditors’ Responsibilities for the Audit of the Financial Statements</div>
+                        <div class="doc-paragraph">Our responsibility is to conduct an audit of the financial statements in accordance with auditing standards generally accepted in the United States of America and to issue an auditors' report. However, because of the matter described in the Basis for Disclaimer of Opinion section, we were not able to obtain sufficient appropriate audit evidence to provide a basis for an audit opinion on these financial statements.</div>
+                    `;
+                }
 
                 if(predPriv) {
                     html += `
@@ -243,14 +395,40 @@
                         <div class="doc-title">INDEPENDENT AUDITORS' REPORT</div>
                         <div>To the Board of Directors of<br>${org}</div>
                     </div>
-                    
-                    <div class="doc-section-title">Opinion</div>
-                    <div class="doc-paragraph">We have audited the financial statements of ${org} (the Organization), which comprise the statement of financial position as of December 31, ${y2}, and the related statements of activities, functional expenses and cash flows for the year then ended, and the related notes to the financial statements.</div>
-                    <div class="doc-paragraph">In our opinion, the accompanying financial statements present fairly, in all material respects, the financial position of the Organization as of December 31, ${y2}, and the changes in its net assets and its cash flows for the year then ended in accordance with accounting principles generally accepted in the United States of America.</div>
-
-                    <div class="doc-section-title">Basis for Opinion</div>
-                    <div class="doc-paragraph">We conducted our audit in accordance with auditing standards generally accepted in the United States of America (GAAS)${yb ? ' and the standards applicable to financial audits contained in Government Auditing Standards, issued by the Comptroller General of the United States' : ''}. Our responsibilities under those standards are further described in the Auditors’ Responsibilities for the Audit of the Financial Statements section of our report. We are required to be independent of the Organization and to meet our other ethical responsibilities in accordance with the relevant ethical requirements relating to our audit. We believe that the audit evidence we have obtained is sufficient and appropriate to provide a basis for our audit opinion.</div>
                 `;
+
+                let opHeader = "Opinion";
+                if (op === 'qualified_gaap' || op === 'qualified_scope') opHeader = "Qualified Opinion";
+                if (op === 'adverse') opHeader = "Adverse Opinion";
+                if (op === 'disclaimer') opHeader = "Disclaimer of Opinion";
+
+                html += `<div class="doc-section-title">${opHeader}</div>`;
+                html += `<div class="doc-paragraph">We have audited the financial statements of ${org} (the Organization), which comprise the statement of financial position as of December 31, ${y2}, and the related statements of activities, functional expenses and cash flows for the year then ended, and the related notes to the financial statements.</div>`;
+                
+                if (op === 'unmodified') {
+                    html += `<div class="doc-paragraph">In our opinion, the accompanying financial statements present fairly, in all material respects, the financial position of the Organization as of December 31, ${y2}, and the changes in its net assets and its cash flows for the year then ended in accordance with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'qualified_gaap') {
+                    html += `<div class="doc-paragraph">In our opinion, except for the effects of the matter described in the Basis for Qualified Opinion section of our report, the accompanying financial statements present fairly, in all material respects, the financial position of the Organization as of December 31, ${y2}, and the changes in its net assets and its cash flows for the year then ended in accordance with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'qualified_scope') {
+                    html += `<div class="doc-paragraph">In our opinion, except for the possible effects of the matter described in the Basis for Qualified Opinion section of our report, the accompanying financial statements present fairly, in all material respects, the financial position of the Organization as of December 31, ${y2}, and the changes in its net assets and its cash flows for the year then ended in accordance with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'adverse') {
+                    html += `<div class="doc-paragraph">In our opinion, because of the significance of the matter discussed in the Basis for Adverse Opinion section of our report, the accompanying financial statements do not present fairly the financial position of the Organization as of December 31, ${y2}, or the changes in its net assets or its cash flows for the year then ended in accordance with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'disclaimer') {
+                    html += `<div class="doc-paragraph">We do not express an opinion on the accompanying financial statements of ${org}. Because of the significance of the matter described in the Basis for Disclaimer of Opinion section of our report, we have not been able to obtain sufficient appropriate audit evidence to provide a basis for an audit opinion on these financial statements.</div>`;
+                }
+
+                let basisHeader = "Basis for Opinion";
+                if (op === 'qualified_gaap' || op === 'qualified_scope') basisHeader = "Basis for Qualified Opinion";
+                if (op === 'adverse') basisHeader = "Basis for Adverse Opinion";
+                if (op === 'disclaimer') basisHeader = "Basis for Disclaimer of Opinion";
+
+                html += `<div class="doc-section-title">${basisHeader}</div>`;
+                
+                if (op !== 'unmodified') {
+                    html += `<div class="doc-paragraph">${modText}</div>`;
+                }
+
+                html += `<div class="doc-paragraph">We conducted our audit in accordance with auditing standards generally accepted in the United States of America (GAAS)${yb ? ' and the standards applicable to financial audits contained in Government Auditing Standards, issued by the Comptroller General of the United States' : ''}. Our responsibilities under those standards are further described in the Auditors’ Responsibilities for the Audit of the Financial Statements section of our report. We are required to be independent of the Organization and to meet our other ethical responsibilities in accordance with the relevant ethical requirements relating to our audit. We believe that the audit evidence we have obtained is sufficient and appropriate to provide a basis for our ${op !== 'unmodified' ? 'modified ' : ''}audit opinion.</div>`;
 
                 if(gc) {
                     html += `
@@ -270,19 +448,28 @@
                     <div class="doc-section-title">Responsibilities of Management for the Financial Statements</div>
                     <div class="doc-paragraph">Management is responsible for the preparation and fair presentation of the financial statements in accordance with accounting principles generally accepted in the United States of America, and for the design, implementation, and maintenance of internal control relevant to the preparation and fair presentation of financial statements that are free from material misstatement, whether due to fraud or error.</div>
                     <div class="doc-paragraph">In preparing the financial statements, management is required to evaluate whether there are conditions or events, considered in the aggregate, that raise substantial doubt about the Organization’s ability to continue as a going concern within one year after the date that the financial statements are available to be issued.</div>
-                    
-                    <div class="doc-section-title">Auditors’ Responsibilities for the Audit of the Financial Statements</div>
-                    <div class="doc-paragraph">Our objectives are to obtain reasonable assurance about whether the financial statements as a whole are free from material misstatement, whether due to fraud or error, and to issue an auditors’ report that includes our opinion. Reasonable assurance is a high level of assurance but is not absolute assurance and therefore is not a guarantee that an audit conducted in accordance with GAAS will always detect a material misstatement when it exists. The risk of not detecting a material misstatement resulting from fraud is higher than for one resulting from error, as fraud may involve collusion, forgery, intentional omissions, misrepresentations, or the override of internal control. Misstatements are considered material if there is a substantial likelihood that, individually or in the aggregate, they would influence the judgment made by a reasonable user based on the financial statements.</div>
-                    <div class="doc-paragraph">In performing an audit in accordance with GAAS, we:</div>
-                    <ul class="doc-list">
-                        <li class="doc-list-item">exercise professional judgment and maintain professional skepticism throughout the audit.</li>
-                        <li class="doc-list-item">identify and assess the risks of material misstatement of the financial statements, whether due to fraud or error, and design and perform audit procedures responsive to those risks. Such procedures include examining, on a test basis, evidence regarding the amounts and disclosures in the financial statements.</li>
-                        <li class="doc-list-item">obtain an understanding of internal control relevant to the audit in order to design audit procedures that are appropriate in the circumstances, but not for the purpose of expressing an opinion on the effectiveness of the Organization’s internal control. Accordingly, no such opinion is expressed.</li>
-                        <li class="doc-list-item">evaluate the appropriateness of accounting policies used and the reasonableness of significant accounting estimates made by management, as well as evaluate the overall presentation of the financial statements.</li>
-                        <li class="doc-list-item">conclude whether, in our judgment, there are conditions or events, considered in the aggregate, that raise substantial doubt about the Organization’s ability to continue as a going concern for a reasonable period of time.</li>
-                    </ul>
-                    <div class="doc-paragraph">We are required to communicate with those charged with governance regarding, among other matters, the planned scope and timing of the audit, significant audit findings, and certain internal control related matters that we identified during the audit.</div>
                 `;
+
+                if (op !== 'disclaimer') {
+                    html += `
+                        <div class="doc-section-title">Auditors’ Responsibilities for the Audit of the Financial Statements</div>
+                        <div class="doc-paragraph">Our objectives are to obtain reasonable assurance about whether the financial statements as a whole are free from material misstatement, whether due to fraud or error, and to issue an auditors’ report that includes our opinion. Reasonable assurance is a high level of assurance but is not absolute assurance and therefore is not a guarantee that an audit conducted in accordance with GAAS will always detect a material misstatement when it exists. The risk of not detecting a material misstatement resulting from fraud is higher than for one resulting from error, as fraud may involve collusion, forgery, intentional omissions, misrepresentations, or the override of internal control. Misstatements are considered material if there is a substantial likelihood that, individually or in the aggregate, they would influence the judgment made by a reasonable user based on the financial statements.</div>
+                        <div class="doc-paragraph">In performing an audit in accordance with GAAS, we:</div>
+                        <ul class="doc-list">
+                            <li class="doc-list-item">exercise professional judgment and maintain professional skepticism throughout the audit.</li>
+                            <li class="doc-list-item">identify and assess the risks of material misstatement of the financial statements, whether due to fraud or error, and design and perform audit procedures responsive to those risks. Such procedures include examining, on a test basis, evidence regarding the amounts and disclosures in the financial statements.</li>
+                            <li class="doc-list-item">obtain an understanding of internal control relevant to the audit in order to design audit procedures that are appropriate in the circumstances, but not for the purpose of expressing an opinion on the effectiveness of the Organization’s internal control. Accordingly, no such opinion is expressed.</li>
+                            <li class="doc-list-item">evaluate the appropriateness of accounting policies used and the reasonableness of significant accounting estimates made by management, as well as evaluate the overall presentation of the financial statements.</li>
+                            <li class="doc-list-item">conclude whether, in our judgment, there are conditions or events, considered in the aggregate, that raise substantial doubt about the Organization’s ability to continue as a going concern for a reasonable period of time.</li>
+                        </ul>
+                        <div class="doc-paragraph">We are required to communicate with those charged with governance regarding, among other matters, the planned scope and timing of the audit, significant audit findings, and certain internal control related matters that we identified during the audit.</div>
+                    `;
+                } else {
+                    html += `
+                        <div class="doc-section-title">Auditors’ Responsibilities for the Audit of the Financial Statements</div>
+                        <div class="doc-paragraph">Our responsibility is to conduct an audit of the financial statements in accordance with auditing standards generally accepted in the United States of America and to issue an auditors' report. However, because of the matter described in the Basis for Disclaimer of Opinion section, we were not able to obtain sufficient appropriate audit evidence to provide a basis for an audit opinion on these financial statements.</div>
+                    `;
+                }
 
                 if(sumComp) {
                     html += `
@@ -319,10 +506,27 @@
                         <div class="doc-title">REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM</div>
                         <div>To the Shareholders and the Board of Directors of<br>${org}</div>
                     </div>
-                    
-                    <div class="doc-section-title">Opinion on the Financial Statements</div>
-                    <div class="doc-paragraph">We have audited the accompanying balance sheets of ${org} (the "Company") as of December 31, ${y2} and ${y1}, the related statements of operations, comprehensive income, stockholders' equity, and cash flows for each of the years in the period ended December 31, ${y2}, and the related notes (collectively referred to as the "financial statements"). In our opinion, the financial statements present fairly, in all material respects, the financial position of the Company as of December 31, ${y2} and ${y1}, and the results of its operations and its cash flows for each of the years in the period ended December 31, ${y2}, in conformity with accounting principles generally accepted in the United States of America.</div>
                 `;
+
+                let opHeader = "Opinion on the Financial Statements";
+                if (op === 'qualified_gaap' || op === 'qualified_scope') opHeader = "Qualified Opinion on the Financial Statements";
+                if (op === 'adverse') opHeader = "Adverse Opinion on the Financial Statements";
+                if (op === 'disclaimer') opHeader = "Disclaimer of Opinion";
+
+                html += `<div class="doc-section-title">${opHeader}</div>`;
+                html += `<div class="doc-paragraph">We have audited the accompanying balance sheets of ${org} (the "Company") as of December 31, ${y2} and ${y1}, the related statements of operations, comprehensive income, stockholders' equity, and cash flows for each of the years in the period ended December 31, ${y2}, and the related notes (collectively referred to as the "financial statements").</div>`;
+                
+                if (op === 'unmodified') {
+                    html += `<div class="doc-paragraph">In our opinion, the financial statements present fairly, in all material respects, the financial position of the Company as of December 31, ${y2} and ${y1}, and the results of its operations and its cash flows for each of the years in the period ended December 31, ${y2}, in conformity with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'qualified_gaap') {
+                    html += `<div class="doc-paragraph">In our opinion, except for the effects of the matter described in the Basis for Qualified Opinion section of our report, the financial statements present fairly, in all material respects, the financial position of the Company as of December 31, ${y2} and ${y1}, and the results of its operations and its cash flows for each of the years in the period ended December 31, ${y2}, in conformity with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'qualified_scope') {
+                    html += `<div class="doc-paragraph">In our opinion, except for the possible effects of the matter described in the Basis for Qualified Opinion section of our report, the financial statements present fairly, in all material respects, the financial position of the Company as of December 31, ${y2} and ${y1}, and the results of its operations and its cash flows for each of the years in the period ended December 31, ${y2}, in conformity with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'adverse') {
+                    html += `<div class="doc-paragraph">In our opinion, because of the significance of the matter discussed in the Basis for Adverse Opinion section of our report, the financial statements do not present fairly the financial position of the Company as of December 31, ${y2} and ${y1}, or the results of its operations or its cash flows for each of the years in the period ended December 31, ${y2}, in conformity with accounting principles generally accepted in the United States of America.</div>`;
+                } else if (op === 'disclaimer') {
+                    html += `<div class="doc-paragraph">We do not express an opinion on the accompanying financial statements of ${org}. Because of the significance of the matter described in the Basis for Disclaimer of Opinion section of our report, we have not been able to obtain sufficient appropriate audit evidence to provide a basis for an audit opinion on these financial statements.</div>`;
+                }
 
                 if(predPub) {
                     html += `<div class="doc-paragraph">The financial statements of the Company as of and for the year ended December 31, ${y1}, were audited by other auditors whose report dated [Prior Date], expressed an unqualified opinion on those statements.</div>`;
@@ -332,11 +536,22 @@
                     html += `<div class="doc-paragraph">We also have audited, in accordance with the standards of the Public Company Accounting Oversight Board (United States) (PCAOB), the Company's internal control over financial reporting as of December 31, ${y2}, based on criteria established in Internal Control—Integrated Framework issued by the Committee of Sponsoring Organizations of the Treadway Commission (COSO), and our report dated ${date} expressed an unqualified opinion thereon.</div>`;
                 }
 
-                html += `
-                    <div class="doc-section-title">Basis for Opinion</div>
-                    <div class="doc-paragraph">These financial statements are the responsibility of the Company's management. Our responsibility is to express an opinion on the Company's financial statements based on our audits. We are a public accounting firm registered with the PCAOB and are required to be independent with respect to the Company in accordance with the U.S. federal securities laws and the applicable rules and regulations of the Securities and Exchange Commission and the PCAOB.</div>
-                    <div class="doc-paragraph">We conducted our audits in accordance with the standards of the PCAOB. Those standards require that we plan and perform the audit to obtain reasonable assurance about whether the financial statements are free of material misstatement, whether due to error or fraud. Our audits included performing procedures to assess the risks of material misstatement of the financial statements, whether due to error or fraud, and performing procedures that respond to those risks. Such procedures included examining, on a test basis, evidence regarding the amounts and disclosures in the financial statements. Our audits also included evaluating the accounting principles used and significant estimates made by management, as well as evaluating the overall presentation of the financial statements. We believe that our audits provide a reasonable basis for our opinion.</div>
-                `;
+                let basisHeader = "Basis for Opinion";
+                if (op === 'qualified_gaap' || op === 'qualified_scope') basisHeader = "Basis for Qualified Opinion";
+                if (op === 'adverse') basisHeader = "Basis for Adverse Opinion";
+                if (op === 'disclaimer') basisHeader = "Basis for Disclaimer of Opinion";
+
+                html += `<div class="doc-section-title">${basisHeader}</div>`;
+                
+                if (op !== 'unmodified') {
+                    html += `<div class="doc-paragraph">${modText}</div>`;
+                }
+
+                html += `<div class="doc-paragraph">These financial statements are the responsibility of the Company's management. Our responsibility is to express an opinion on the Company's financial statements based on our audits. We are a public accounting firm registered with the PCAOB and are required to be independent with respect to the Company in accordance with the U.S. federal securities laws and the applicable rules and regulations of the Securities and Exchange Commission and the PCAOB.</div>`;
+                
+                if (op !== 'disclaimer') {
+                    html += `<div class="doc-paragraph">We conducted our audits in accordance with the standards of the PCAOB. Those standards require that we plan and perform the audit to obtain reasonable assurance about whether the financial statements are free of material misstatement, whether due to error or fraud. Our audits included performing procedures to assess the risks of material misstatement of the financial statements, whether due to error or fraud, and performing procedures that respond to those risks. Such procedures included examining, on a test basis, evidence regarding the amounts and disclosures in the financial statements. Our audits also included evaluating the accounting principles used and significant estimates made by management, as well as evaluating the overall presentation of the financial statements. We believe that our audits provide a reasonable basis for our opinion.</div>`;
+                }
 
                 if(changeAcct) {
                     html += `
@@ -364,7 +579,10 @@
             document.getElementById('preview').innerHTML = html;
         }
 
-        window.onload = updateUI;
+        window.onload = function() {
+            populateScenarios();
+            updateUI();
+        };
     </script>
 </body>
 </html>
